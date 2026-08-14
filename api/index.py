@@ -7,7 +7,7 @@ import time
 TOKEN = "8883835008:AAEjm5zjdMuFEB8E19PdKGTGS7GSu6gjpb4"
 OTP_GROUP_ID = "-1003931415470"
 OTP_GROUP_LINK = "https://t.me/c/3931415470/1"
-BOT_USERNAME = "PrimeRateSMS_bot" # আপনার বটের ইউজারনেম এখানে দিন
+BOT_USERNAME = "PrimeRateSMS_bot"
 
 config = {
     "maintenance_mode": False,
@@ -146,7 +146,6 @@ class handler(BaseHTTPRequestHandler):
                             f"📩 **Latest SMS/OTP:**\n{sms_text}"
                         )
                         
-                        # নম্বরের নিচে Fetch SMS বাটন যুক্ত করা হলো
                         reply_markup = {
                             "inline_keyboard": [
                                 [{"text": "🔄 Fetch SMS Code", "callback_data": f"fetch_{service}_{country}_{assigned_num}"}],
@@ -155,7 +154,6 @@ class handler(BaseHTTPRequestHandler):
                         }
                         self.edit_telegram_message(chat_id, message_id, text, reply_markup)
 
-                        # গ্রুপে মেসেজ পাঠানোর সময় নিচে Get Number প্যানেল বাটন যুক্ত করা হলো
                         group_markup = {
                             "inline_keyboard": [
                                 [{"text": "📥 Get Number Panel", "url": f"https://t.me/{BOT_USERNAME}?start=get"}]
@@ -211,7 +209,7 @@ class handler(BaseHTTPRequestHandler):
                         "inline_keyboard": [
                             [{"text": "➕ Add New Service", "callback_data": "admin_add_service"}],
                             [{"text": "➕ Add Country/Number", "callback_data": "admin_edit_services"}],
-                            [{"text": "🗑️ Delete / Manage Live Numbers", "callback_data": "admin_manage_stock"}],
+                            [{"text": "🗑️ Manage / Replace / Delete Stock", "callback_data": "admin_manage_stock"}],
                             [{"text": "🔙 Back", "callback_data": "back_home"}]
                         ]
                     }
@@ -234,21 +232,39 @@ class handler(BaseHTTPRequestHandler):
                     self.edit_telegram_message(chat_id, message_id, f"📝 **{service}** এর জন্য দেশের নাম ও ফ্ল্যাগ লিখুন:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
 
                 elif data == "admin_manage_stock":
-                    # লাইভ স্টক ডিলিট বা ম্যানেজ করার অপশন
                     keyboard = []
                     for s_name, countries in database.items():
                         for c_name, nums in countries.items():
-                            keyboard.append([{"text": f"❌ Clear {s_name} ({c_name}: {len(nums)} left)", "callback_data": f"clear_stock_{s_name}_{c_name}"}])
+                            keyboard.append([{"text": f"📂 {s_name} - {c_name} ({len(nums)} nums)", "callback_data": f"view_stock_{s_name}_{c_name}"}])
                     keyboard.append([{"text": "🔙 Back", "callback_data": "admin_menu"}])
-                    self.edit_telegram_message(chat_id, message_id, "🗑️ স্টক থেকে নির্দিষ্ট দেশের অবশিষ্টাংশ ডিলিট বা পরিষ্কার করতে নিচে ক্লিক করুন:", {"inline_keyboard": keyboard})
+                    self.edit_telegram_message(chat_id, message_id, "📋 স্টক দেখতে বা নির্দিষ্ট দেশ/নম্বর ডিলিট/রিপ্লেস করতে নিচে ক্লিক করুন:", {"inline_keyboard": keyboard})
 
-                elif data.startswith("clear_stock_"):
+                elif data.startswith("view_stock_"):
                     parts = data.split("_", 3)
                     s_name = parts[2]
                     c_name = parts[3]
-                    if s_name in database and c_name in database[s_name]:
-                        database[s_name][c_name] = [] # নম্বরগুলো ক্লিয়ার করে দেওয়া হলো
-                    self.edit_telegram_message(chat_id, message_id, f"✅ সফলভাবে **{s_name} ({c_name})** এর বাকি সব লাইভ নম্বর ডিলিট বা রিমুভ করা হয়েছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_menu"}]]})
+                    nums = database.get(s_name, {}).get(c_name, [])
+                    
+                    num_list_preview = "\n".join([f"📱 `{n}`" for n in nums[:10]]) if nums else "কোনো নম্বর নেই।"
+                    text = f"📂 **{s_name} -> {c_name}**\nমোট নম্বর আছে: {len(nums)}টি\n\n{num_list_preview}"
+                    
+                    keyboard = [
+                        [{"text": "🗑️ Clear/Delete All in this Country", "callback_data": f"clear_country_{s_name}_{c_name}"}],
+                        [{"text": "🔙 Back to Stock", "callback_data": "admin_manage_stock"}]
+                    ]
+                    self.edit_telegram_message(chat_id, message_id, text, {"inline_keyboard": keyboard})
+
+                elif data.startswith("clear_country_"):
+                    parts = data.split("_", 2)
+                    # safe split for service and country
+                    rem = data.replace("clear_country_", "")
+                    # finding last underscore or matching
+                    for s_name in database:
+                        for c_name in database[s_name]:
+                            if rem == f"{s_name}_{c_name}":
+                                database[s_name][c_name] = []
+                    
+                    self.edit_telegram_message(chat_id, message_id, "✅ এই দেশের বাকি সব নম্বর সফলভাবে মুছে ফেলা হয়েছে! এখন নতুন নম্বর রি-অ্যাড করতে পারেন।", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_manage_stock"}]]})
 
             self.send_response(200)
             self.end_headers()
@@ -294,7 +310,7 @@ class handler(BaseHTTPRequestHandler):
         keyboard = []
         for s_name in database.keys():
             keyboard.append([{"text": f"🌐 {s_name}", "callback_data": f"service_{s_name}"}])
-        keyboard.append([{"text": "🔙 Back", "callback_data": "back_home"}]]
+        keyboard.append([{"text": "🔙 Back", "callback_data": "back_home"}])
         return {"inline_keyboard": keyboard}
 
     def admin_keyboard(self):
@@ -331,4 +347,4 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running with Fetch Code & Delete Stock System!")
+        self.wfile.write(b"Bot is running with Stock View & Replace/Delete System!")
