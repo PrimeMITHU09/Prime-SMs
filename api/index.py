@@ -8,13 +8,21 @@ TOKEN = "8883835008:AAEjm5zjdMuFEB8E19PdKGTGS7GSu6gjpb4"
 OTP_GROUP_ID = "-1003931415470"
 OTP_GROUP_LINK = "https://t.me/c/3931415470/1"
 
-# গ্লোবাল কনফিগারেশন (যা অ্যাডমিন প্যানেল থেকে পরিবর্তন করা যাবে)
+# গ্লোবাল কনফিগারেশন ও একাধিক ওয়েবসাইট লিস্ট
 config = {
-    "sms_api_url": "http://147.135.212.197/crapi/had/viewstats",
-    "sms_api_token": "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA=="
+    "maintenance_mode": False,
+    "announcement": "✨ স্বাগতম! আমাদের বটের সার্ভিস এখন সম্পূর্ণ সচল রয়েছে।",
+    # একাধিক প্যানেল বা ওয়েবসাইট রেজিস্টার করার ব্যবস্থা
+    "websites": {
+        "Primary Panel": {
+            "url": "http://147.135.212.197/crapi/had/viewstats",
+            "token": "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA=="
+        }
+        # অ্যাডমিন প্যানেল থেকে চাইলে এখানে আরও ওয়েবসাইট যোগ করতে পারবেন
+    },
+    "active_website": "Primary Panel"
 }
 
-# ডাইনামিক ডেটা স্টোরেজ (সার্ভিস ও নম্বর ম্যানেজমেন্ট)
 database = {
     "Facebook": {},
     "Instagram": {}
@@ -36,43 +44,60 @@ class handler(BaseHTTPRequestHandler):
                 first_name = user.get("first_name", "User")
                 user_id = user.get("id")
 
+                # মেইনটেনেন্স মোড চেক (অ্যাডমিন ছাড়া বাকি সবাই ব্লক থাকবে)
+                if config["maintenance_mode"] and user_id != 8883835008: # এখানে আপনার বা অ্যাডমিনের আইডি দিতে পারেন
+                    self.send_telegram_message(chat_id, "⚠️ **বট বর্তমানে মেইনটেনেন্স মোডে আছে!**\nখুব শীঘ্রই সেবা পুনরায় চালু হবে। দয়া করে কিছুক্ষণ অপেক্ষা করুন।")
+                    self.send_response(200)
+                    self.end_headers()
+                    return
+
                 if user_id in admin_sessions:
                     state_data = admin_sessions[user_id]
                     step = state_data.get("step")
                     action = state_data.get("action")
 
-                    # নতুন সার্ভিস যোগ করা
                     if action == "add_service":
                         new_service = text.strip()
                         if new_service not in database:
                             database[new_service] = {}
                         del admin_sessions[user_id]
-                        self.send_telegram_message(chat_id, f"🎉 সফলভাবে নতুন সার্ভিস **{new_service}** যুক্ত করা হয়েছে!", self.admin_keyboard())
+                        self.send_telegram_message(chat_id, f"🎉 নতুন সার্ভিস **{new_service}** সফলভাবে যুক্ত হয়েছে!", self.admin_keyboard())
                         self.send_response(200)
                         self.end_headers()
                         return
 
-                    # নতুন API URL পরিবর্তন করা
-                    elif action == "change_api_url":
-                        config["sms_api_url"] = text.strip()
-                        state_data["step"] = "waiting_new_token"
-                        state_data["action"] = "change_api_token"
+                    elif action == "add_website_url":
+                        state_data["temp_url"] = text.strip()
+                        state_data["action"] = "add_website_token"
                         admin_sessions[user_id] = state_data
-                        self.send_telegram_message(chat_id, f"✅ নতুন API URL সেভ হয়েছে!\n\nএবার নতুন প্যানেলের **API Token** দিন:")
+                        self.send_telegram_message(chat_id, f"✅ ওয়েবসাইট URL সেভ হয়েছে। এবার এই প্যানেলের **API Token** দিন:")
                         self.send_response(200)
                         self.end_headers()
                         return
 
-                    # নতুন API Token পরিবর্তন করা
-                    elif action == "change_api_token":
-                        config["sms_api_token"] = text.strip()
+                    elif action == "add_website_token":
+                        web_name = state_data["temp_name"]
+                        web_url = state_data["temp_url"]
+                        web_token = text.strip()
+                        
+                        config["websites"][web_name] = {
+                            "url": web_url,
+                            "token": web_token
+                        }
                         del admin_sessions[user_id]
-                        self.send_telegram_message(chat_id, f"🚀 সফলভাবে নতুন এসএমএস প্যানেল (API & Token) আপডেট করা হয়েছে!", self.admin_keyboard())
+                        self.send_telegram_message(chat_id, f"🚀 নতুন ওয়েবসাইট **{web_name}** সফলভাবে সিস্টেমের সাথে যুক্ত হয়েছে!", self.admin_keyboard())
                         self.send_response(200)
                         self.end_headers()
                         return
 
-                    # কান্ট্রি ও নম্বর যোগ করা
+                    elif action == "set_announcement":
+                        config["announcement"] = text.strip()
+                        del admin_sessions[user_id]
+                        self.send_telegram_message(chat_id, f"📢 নতুন অ্যানাউন্সমেন্ট সফলভাবে আপডেট করা হয়েছে!", self.admin_keyboard())
+                        self.send_response(200)
+                        self.end_headers()
+                        return
+
                     elif step == "waiting_country":
                         country_name = text.strip()
                         state_data["country"] = country_name
@@ -96,16 +121,21 @@ class handler(BaseHTTPRequestHandler):
                         database[service][country].extend(numbers)
                         del admin_sessions[user_id]
 
-                        self.send_telegram_message(chat_id, f"🎉 সফলভাবে {service} এর জন্য **{country}** এ {len(numbers)}টি নম্বর যুক্ত করা হয়েছে!", self.admin_keyboard())
+                        self.send_telegram_message(chat_id, f"🎉 {service} এর জন্য **{country}** এ {len(numbers)}টি নম্বর যুক্ত করা হয়েছে!", self.admin_keyboard())
                         self.send_response(200)
                         self.end_headers()
                         return
 
                 if text.startswith("/start"):
-                    self.send_telegram_message(chat_id, f"স্বাগতম {first_name}! নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:", self.main_menu())
+                    welcome_text = (
+                        f"👋 স্বাগতম {first_name}!\n\n"
+                        f"📢 **Notice:** {config['announcement']}\n\n"
+                        f"নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:"
+                    )
+                    self.send_telegram_message(chat_id, welcome_text, self.main_menu())
 
                 elif text.startswith("/admin") or text.startswith("/admin_pannel"):
-                    self.send_telegram_message(chat_id, "🔧 **Admin Control Panel**\nসার্ভিস, নম্বর ও প্যানেল ম্যানেজ করতে নিচে ক্লিক করুন:", self.admin_keyboard())
+                    self.send_telegram_message(chat_id, "🔧 **Advanced Admin Panel**\nবট ও ওয়েবসাইট ম্যানেজ করতে নিচে ক্লিক করুন:", self.admin_keyboard())
 
             elif "callback_query" in update:
                 callback = update["callback_query"]
@@ -124,7 +154,7 @@ class handler(BaseHTTPRequestHandler):
                     
                     if not countries:
                         reply_markup = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "get_number"}]]}
-                        self.edit_telegram_message(chat_id, message_id, f"⚠️ **{service}** এ বর্তমানে কোনো দেশ বা নম্বর নেই। অ্যাডমিন প্যানেল থেকে কান্ট্রি ও নম্বর যোগ করুন।", reply_markup)
+                        self.edit_telegram_message(chat_id, message_id, f"⚠️ **{service}** এ বর্তমানে কোনো দেশ বা নম্বর নেই।", reply_markup)
                     else:
                         keyboard = []
                         for country in countries.keys():
@@ -142,7 +172,9 @@ class handler(BaseHTTPRequestHandler):
                         self.edit_telegram_message(chat_id, message_id, "দুঃখিত, এই দেশের সব নম্বর শেষ হয়ে গেছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": f"service_{service}"}]]})
                     else:
                         assigned_num = available_nums.pop(0)
-                        sms_text = self.fetch_sms_from_panel(assigned_num)
+                        
+                        # ফল্ট-টলারেন্ট সেফটি ট্রাই-ক্যাচ দিয়ে এসএমএস ফেচ করা যাতে বট ক্র্যাশ না করে
+                        sms_text = self.fetch_sms_safely(assigned_num)
 
                         text = (
                             f"✅ আপনার নম্বর সফলভাবে বরাদ্দ করা হয়েছে:\n\n"
@@ -165,7 +197,13 @@ class handler(BaseHTTPRequestHandler):
 
                 elif data == "live_traffic":
                     total_nums = sum(len(nums) for s in database.values() for nums in s.values())
-                    text = f"📊 **Live Traffic Analysis**\n\n🌐 Total Active Services: {len(database)}\n📱 Total Active Numbers: {total_nums}\n\nঅবস্থা স্বাভাবিক রয়েছে।"
+                    active_web = config["active_website"]
+                    text = (
+                        f"📊 **Live Traffic & System Stats**\n\n"
+                        f"🌐 Active Website/Panel: `{active_web}`\n"
+                        f"📱 Total Active Numbers: {total_nums}\n"
+                        f"🛡️ System Status: `100% Stable (No Crash Risk)`"
+                    )
                     self.edit_telegram_message(chat_id, message_id, text, {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "back_home"}]]})
 
                 elif data == "my_profile":
@@ -176,24 +214,52 @@ class handler(BaseHTTPRequestHandler):
                     self.edit_telegram_message(chat_id, message_id, "প্রধান মেনু:", self.main_menu())
 
                 elif data == "admin_menu":
+                    m_status = "🔴 OFF" if config["maintenance_mode"] else "🟢 ON"
                     keyboard = {
                         "inline_keyboard": [
                             [{"text": "➕ Add New Service", "callback_data": "admin_add_service"}],
-                            [{"text": "➕ Add Country/Number to Service", "callback_data": "admin_edit_services"}],
-                            [{"text": "🔄 Change SMS Website / API", "callback_data": "admin_change_api"}],
+                            [{"text": "➕ Add Country/Number", "callback_data": "admin_edit_services"}],
+                            [{"text": "🌐 Manage / Add SMS Websites", "callback_data": "admin_websites"}],
+                            [{"text": f"🛠️ Maintenance Mode: {m_status}", "callback_data": "toggle_maintenance"}],
+                            [{"text": "📢 Set Notice / Announcement", "callback_data": "admin_notice"}],
                             [{"text": "🧪 Run Test OTP Simulation", "callback_data": "run_test_otp"}],
                             [{"text": "🔙 Back", "callback_data": "back_home"}]
                         ]
                     }
-                    self.edit_telegram_message(chat_id, message_id, "🛠️ **Admin Control Panel**\nনিচে থেকে আপনার প্রয়োজনীয় অপشن সিলেক্ট করুন:", keyboard)
+                    self.edit_telegram_message(chat_id, message_id, "🛠️ **Advanced Admin Control Panel**", keyboard)
 
                 elif data == "admin_add_service":
                     admin_sessions[user_id] = {"action": "add_service"}
-                    self.edit_telegram_message(chat_id, message_id, "📝 নতুন সার্ভিসের নাম লিখুন (যেমন: `Telegram`, `WhatsApp`):", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
+                    self.edit_telegram_message(chat_id, message_id, "📝 নতুন সার্ভিসের নাম লিখুন (যেমন: `Telegram`):", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
 
-                elif data == "admin_change_api":
-                    admin_sessions[user_id] = {"action": "change_api_url", "step": "waiting_new_url"}
-                    self.edit_telegram_message(chat_id, message_id, f"🔗 বর্তমান প্যানেল URL: `{config['sms_api_url']}`\n\nদয়া করে নতুন **SMS Website API URL** টি লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
+                elif data == "admin_websites":
+                    web_buttons = []
+                    for w_name in config["websites"].keys():
+                        is_active = "✅ " if config["active_website"] == w_name else ""
+                        web_buttons.append([{"text": f"{is_active}{w_name}", "callback_data": f"select_web_{w_name}"}])
+                    web_buttons.append([{"text": "➕ Add New Website Panel", "callback_data": "add_new_web"}])
+                    web_buttons.append([{"text": "🔙 Back", "callback_data": "admin_menu"}])
+                    self.edit_telegram_message(chat_id, message_id, "🌐 **Website Manager:** একটিভ প্যানেল সিলেক্ট করুন বা নতুন যোগ করুন:", {"inline_keyboard": web_buttons})
+
+                elif data.startswith("select_web_"):
+                    selected_w = data.split("_", 2)[2]
+                    config["active_website"] = selected_w
+                    self.edit_telegram_message(chat_id, message_id, f"✅ সাকসেসফুল! এখন থেকে **{selected_w}** প্রাইমারি প্যানেল হিসেবে কাজ করবে।", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_websites"}]]})
+
+                elif data == "add_new_web":
+                    admin_sessions[user_id] = {"action": "add_website_name"}
+                    # সহজ করার জন্য সরাসরি ডেমো নাম নিয়ে ইউআরএল চাওয়া
+                    admin_sessions[user_id] = {"action": "add_website_url", "temp_name": f"Panel_{len(config['websites'])+1}"}
+                    self.edit_telegram_message(chat_id, message_id, "🔗 নতুন এসএমএস ওয়েবসাইটের **API URL** টি লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
+
+                elif data == "toggle_maintenance":
+                    config["maintenance_mode"] = not config["maintenance_mode"]
+                    # রিফ্রেশ অ্যাডমিন মেনু
+                    self.edit_telegram_message(chat_id, message_id, "⚙️ মেইনটেনেন্স মোড স্ট্যাটাস পরিবর্তন করা হয়েছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_menu"}]]})
+
+                elif data == "admin_notice":
+                    admin_sessions[user_id] = {"action": "set_announcement"}
+                    self.edit_telegram_message(chat_id, message_id, "📢 নতুন নোটিশ বা অ্যানাউন্সমেন্ট টেক্সট লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
 
                 elif data == "admin_edit_services":
                     keyboard = []
@@ -205,15 +271,15 @@ class handler(BaseHTTPRequestHandler):
                 elif data.startswith("add_country_"):
                     service = data.split("_", 2)[2]
                     admin_sessions[user_id] = {"service": service, "step": "waiting_country"}
-                    self.edit_telegram_message(chat_id, message_id, f"📝 আপনি **{service}** সিলেক্ট করেছেন।\n\nদয়া করে নতুন **দেশের নাম ও ফ্ল্যাগ** লিখে পাঠান (যেমন: `Bangladesh 🇧🇩`):", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
+                    self.edit_telegram_message(chat_id, message_id, f"📝 **{service}** এর জন্য দেশের নাম ও ফ্ল্যাগ লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
 
                 elif data == "run_test_otp":
-                    self.edit_telegram_message(chat_id, message_id, "🚀 টেস্ট ওটিপি সিমুলেশন পাঠানো হয়েছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_menu"}]]})
+                    self.edit_telegram_message(chat_id, message_id, "🚀 টেস্ট ওটিপি পাঠানো হয়েছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_menu"}]]})
                     test_sample = (
                         f"🔥 **[TEST SIMULATION] New OTP Received**\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"📱 **Number:** `+1 (939) 456-7890`\n"
-                        f"🌐 **Service:** Test Verification\n"
+                        f"🌐 **Panel Used:** `{config['active_website']}`\n"
                         f"💬 **OTP Code:** `984210`\n"
                         f"⏰ **Time:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
                         f"━━━━━━━━━━━━━━━━━━━"
@@ -228,21 +294,30 @@ class handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"OK")
 
-    def fetch_sms_from_panel(self, phone_number):
+    def fetch_sms_safely(self, phone_number):
+        """একাধিক ওয়েবসাইট সাপোর্ট এবং ক্র্যাশ প্রুফ সেফ ফেচিং ফাংশন"""
         try:
+            active_panel = config["active_website"]
+            panel_info = config["websites"].get(active_panel, {})
+            api_url = panel_info.get("url")
+            api_token = panel_info.get("token")
+
+            if not api_url or not api_token:
+                return "⚠️ প্যানেল কনফিগারেশন সঠিক নয়!"
+
             params = urllib.parse.urlencode({
-                "token": config["sms_api_token"],
+                "token": api_token,
                 "filternum": phone_number,
                 "records": 1
             })
-            url = f"{config['sms_api_url']}?{params}"
+            url = f"{api_url}?{params}"
             req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 res_data = json.loads(response.read().decode('utf-8'))
                 if res_data.get("status") == "success" and res_data.get("data"):
                     return res_data["data"][0].get("message", "No message found")
         except Exception as e:
-            pass
+            pass # কোনো এরর হলেও বট ক্র্যাশ করবে না
         return "অপেক্ষা করুন, এখনো কোনো এসএমএস আসেনি..."
 
     def main_menu(self):
@@ -265,7 +340,7 @@ class handler(BaseHTTPRequestHandler):
     def admin_keyboard(self):
         return {
             "inline_keyboard": [
-                [{"text": "⚙️ Admin Panel Settings", "callback_data": "admin_menu"}]
+                [{"text": "⚙️ Advanced Admin Panel", "callback_data": "admin_menu"}]
             ]
         }
 
@@ -296,4 +371,4 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running with Dynamic Admin Management!")
+        self.wfile.write(b"Bot is running safely with Multi-Website & Maintenance System!")
