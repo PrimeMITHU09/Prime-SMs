@@ -11,7 +11,7 @@ BOT_USERNAME = "PrimeRateSMS_bot"
 
 config = {
     "maintenance_mode": False,
-    "announcement": "✨ স্বাগতম! আমাদের বটের সার্ভিস এখন সম্পূর্ণ সচল রয়েছে।",
+    "announcement": "✨ স্বাগতম! আমাদের বটের সার্ভিস এখন সম্পূর্ণ সচল রয়েছে।",
     "websites": {
         "Primary Panel": {
             "url": "http://147.135.212.197/crapi/had/viewstats",
@@ -58,7 +58,7 @@ class handler(BaseHTTPRequestHandler):
                         if new_service not in database:
                             database[new_service] = {}
                         del admin_sessions[user_id]
-                        self.send_telegram_message(chat_id, f"🎉 নতুন সার্ভিস **{new_service}** যুক্ত হয়েছে!", self.admin_keyboard())
+                        self.send_telegram_message(chat_id, f"🎉 নতুন সার্ভিস **{new_service}** যুক্ত হয়েছে!", self.admin_keyboard())
                         self.send_response(200)
                         self.end_headers()
                         return
@@ -68,7 +68,7 @@ class handler(BaseHTTPRequestHandler):
                         state_data["country"] = country_name
                         state_data["step"] = "waiting_number"
                         admin_sessions[user_id] = state_data
-                        self.send_telegram_message(chat_id, f"✅ কান্ট্রি যুক্ত হয়েছে: {country_name}\n\nএবার এই কান্ট্রির **নম্বরগুলো** দিন (এক লাইনে একটি করে):")
+                        self.send_telegram_message(chat_id, f"✅ কান্ট্রি যুক্ত হয়েছে: {country_name}\n\nএবার এই কান্ট্রির **নম্বরগুলো** দিন (এক লাইনে একটি করে):")
                         self.send_response(200)
                         self.end_headers()
                         return
@@ -86,16 +86,16 @@ class handler(BaseHTTPRequestHandler):
                         database[service][country].extend(numbers)
                         del admin_sessions[user_id]
 
-                        self.send_telegram_message(chat_id, f"🎉 {service} ({country}) এ {len(numbers)}টি নম্বর সফলভাবে যোগ করা হয়েছে!", self.admin_keyboard())
+                        self.send_telegram_message(chat_id, f"🎉 {service} ({country}) এ {len(numbers)}টি নম্বর সফলভাবে যোগ করা হয়েছে!", self.admin_keyboard())
                         self.send_response(200)
                         self.end_headers()
                         return
 
                 if text.startswith("/start"):
                     welcome_text = (
-                        f"👋 স্বাগতম {first_name}!\n\n"
+                        f"👋 স্বাগতম **{first_name}**!\n\n"
                         f"📢 **Notice:** {config['announcement']}\n\n"
-                        f"নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:"
+                        f"⚡ নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:"
                     )
                     self.send_telegram_message(chat_id, welcome_text, self.main_menu())
 
@@ -111,7 +111,7 @@ class handler(BaseHTTPRequestHandler):
                 user_id = user.get("id")
                 
                 if data == "get_number":
-                    self.edit_telegram_message(chat_id, message_id, "দয়া করে সার্ভিস সিলেক্ট করুন:", self.get_service_keyboard())
+                    self.edit_telegram_message(chat_id, message_id, "⚡ দয়া করে সার্ভিস সিলেক্ট করুন:", self.get_service_keyboard())
 
                 elif data.startswith("service_"):
                     service = data.split("_")[1]
@@ -119,13 +119,13 @@ class handler(BaseHTTPRequestHandler):
                     
                     if not countries:
                         reply_markup = {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "get_number"}]]}
-                        self.edit_telegram_message(chat_id, message_id, f"⚠️ **{service}** এ বর্তমানে কোনো দেশ বা নম্বর নেই।", reply_markup)
+                        self.edit_telegram_message(chat_id, message_id, f"⚠️ **{service}** এ বর্তমানে কোনো দেশ বা নম্বর নেই স্টক খালি!", reply_markup)
                     else:
                         keyboard = []
                         for country in countries.keys():
-                            keyboard.append([{"text": country, "callback_data": f"country_{service}_{country}"}])
+                            keyboard.append([{"text": f"🌍 {country}", "callback_data": f"country_{service}_{country}"}])
                         keyboard.append([{"text": "🔙 Back", "callback_data": "get_number"}])
-                        self.edit_telegram_message(chat_id, message_id, f"🌍 **{service}** এর জন্য দেশ সিলেক্ট করুন:", {"inline_keyboard": keyboard})
+                        self.edit_telegram_message(chat_id, message_id, f"🌐 **{service}** এর জন্য দেশ সিলেক্ট করুন:", {"inline_keyboard": keyboard})
 
                 elif data.startswith("country_"):
                     parts = data.split("_", 2)
@@ -134,39 +134,49 @@ class handler(BaseHTTPRequestHandler):
                     available_nums = database.get(service, {}).get(country, [])
                     
                     if not available_nums:
-                        self.edit_telegram_message(chat_id, message_id, "দুঃখিত, এই দেশের সব নম্বর শেষ হয়ে গেছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": f"service_{service}"}]]})
+                        self.edit_telegram_message(chat_id, message_id, "⚠️ দুঃখিত, এই দেশের সব নম্বর শেষ হয়ে গেছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": f"service_{service}"}]]})
                     else:
                         assigned_num = available_nums.pop(0)
                         sms_text = self.fetch_sms_safely(assigned_num)
 
+                        # ইউজারের জন্য VIP Boxed ডিজাইন
                         text = (
-                            f"✅ আপনার নম্বর সফলভাবে বরাদ্দ করা হয়েছে:\n\n"
-                            f"📱 **{assigned_num}**\n"
-                            f"সার্ভিস: {service} ({country})\n\n"
-                            f"📩 **Latest SMS/OTP:**\n{sms_text}"
+                            f"┏━━━━━━━ ✦ **VIP OTP PANEL** ✦ ━━━━━━━\n"
+                            f"┃ 👤 **User:** {user.get('first_name')}\n"
+                            f"┃ 📱 **Phone:** `{assigned_num}`\n"
+                            f"┃ 🌐 **Service:** {service} | {country}\n"
+                            f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"┃ 📩 **OTP Code / SMS:**\n"
+                            f"┃ <code>{sms_text}</code>\n"
+                            f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                         )
                         
                         reply_markup = {
                             "inline_keyboard": [
                                 [{"text": "🔄 Fetch SMS Code", "callback_data": f"fetch_{service}_{country}_{assigned_num}"}],
-                                [{"text": "🔙 Main Menu", "callback_data": "back_home"}]
+                                [{"text": "🔗 Get OTP Group", "url": OTP_GROUP_LINK}],
+                                [{"text": "🏠 Main Menu", "callback_data": "back_home"}]
                             ]
                         }
-                        self.edit_telegram_message(chat_id, message_id, text, reply_markup)
+                        self.edit_telegram_message(chat_id, message_id, text, reply_markup, parse_mode="HTML")
 
+                        # গ্রুপের জন্য VIP Boxed ডিজাইন ও প্যানেল বাটন
                         group_markup = {
                             "inline_keyboard": [
                                 [{"text": "📥 Get Number Panel", "url": f"https://t.me/{BOT_USERNAME}?start=get"}]
                             ]
                         }
                         group_message = (
-                            f"🚨 **New OTP Assigned Alert**\n"
-                            f"👤 User: {user.get('first_name')} (`{user_id}`)\n"
-                            f"📱 Number: `{assigned_num}`\n"
-                            f"🌐 Service: {service} ({country})\n"
-                            f"💬 Message: {sms_text}"
+                            f"┏━━━━━━━ ✦ **VIP OTP PANEL (GROUP)** ✦ ━━━━━━━\n"
+                            f"┃ 👤 **User:** {user.get('first_name')} (`{user_id}`)\n"
+                            f"┃ 📱 **Phone:** `{assigned_num}`\n"
+                            f"┃ 🌐 **Service:** {service} | {country}\n"
+                            f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                            f"┃ 📩 **OTP Code / SMS:**\n"
+                            f"┃ <code>{sms_text}</code>\n"
+                            f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                         )
-                        self.send_telegram_message(OTP_GROUP_ID, group_message, group_markup)
+                        self.send_telegram_message(OTP_GROUP_ID, group_message, group_markup, parse_mode="HTML")
 
                 elif data.startswith("fetch_"):
                     parts = data.split("_", 3)
@@ -176,40 +186,45 @@ class handler(BaseHTTPRequestHandler):
                     
                     sms_text = self.fetch_sms_safely(assigned_num)
                     text = (
-                        f"✅ নম্বর স্ট্যাটাস আপডেট:\n\n"
-                        f"📱 **{assigned_num}**\n"
-                        f"সার্ভিস: {service} ({country})\n\n"
-                        f"📩 **Latest SMS/OTP:**\n{sms_text}"
+                        f"┏━━━━━━━ ✦ **VIP OTP PANEL** ✦ ━━━━━━━\n"
+                        f"┃ 👤 **User:** {user.get('first_name')}\n"
+                        f"┃ 📱 **Phone:** `{assigned_num}`\n"
+                        f"┃ 🌐 **Service:** {service} | {country}\n"
+                        f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"┃ 📩 **OTP Code / SMS:**\n"
+                        f"┃ <code>{sms_text}</code>\n"
+                        f"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     )
                     reply_markup = {
                         "inline_keyboard": [
                             [{"text": "🔄 Fetch SMS Code", "callback_data": f"fetch_{service}_{country}_{assigned_num}"}],
-                            [{"text": "🔙 Main Menu", "callback_data": "back_home"}]
+                            [{"text": "🔗 Get OTP Group", "url": OTP_GROUP_LINK}],
+                            [{"text": "🏠 Main Menu", "callback_data": "back_home"}]
                         ]
                     }
                     try:
-                        self.edit_telegram_message(chat_id, message_id, text, reply_markup)
+                        self.edit_telegram_message(chat_id, message_id, text, reply_markup, parse_mode="HTML")
                     except:
                         pass
 
                 elif data == "live_traffic":
                     total_nums = sum(len(nums) for s in database.values() for nums in s.values())
-                    text = f"📊 **Live Stock Stats**\n📱 Total Active Numbers in Stock: {total_nums}"
+                    text = f"📊 **Live Stock Stats**\n\n📱 Total Active Numbers in Stock: **{total_nums}**\n🟢 System Status: **Online & Secure**"
                     self.edit_telegram_message(chat_id, message_id, text, {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "back_home"}]]})
 
                 elif data == "my_profile":
-                    text = f"👤 **User Profile**\n🔹 Name: {user.get('first_name')}\n🔹 User ID: `{user_id}`"
+                    text = f"👤 **User Profile**\n\n🔹 Name: {user.get('first_name')}\n🔹 User ID: `{user_id}`"
                     self.edit_telegram_message(chat_id, message_id, text, {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "back_home"}]]})
 
                 elif data == "back_home":
-                    self.edit_telegram_message(chat_id, message_id, "প্রধান মেনু:", self.main_menu())
+                    self.edit_telegram_message(chat_id, message_id, "⚡ প্রধান মেনু:", self.main_menu())
 
                 elif data == "admin_menu":
                     keyboard = {
                         "inline_keyboard": [
                             [{"text": "➕ Add New Service", "callback_data": "admin_add_service"}],
                             [{"text": "➕ Add Country/Number", "callback_data": "admin_edit_services"}],
-                            [{"text": "🗑️ Manage / Replace / Delete Stock", "callback_data": "admin_manage_stock"}],
+                            [{"text": "🗑️ Manage / Delete Stock", "callback_data": "admin_manage_stock"}],
                             [{"text": "🔙 Back", "callback_data": "back_home"}]
                         ]
                     }
@@ -237,7 +252,7 @@ class handler(BaseHTTPRequestHandler):
                         for c_name, nums in countries.items():
                             keyboard.append([{"text": f"📂 {s_name} - {c_name} ({len(nums)} nums)", "callback_data": f"view_stock_{s_name}_{c_name}"}])
                     keyboard.append([{"text": "🔙 Back", "callback_data": "admin_menu"}])
-                    self.edit_telegram_message(chat_id, message_id, "📋 স্টক দেখতে বা নির্দিষ্ট দেশ/নম্বর ডিলিট/রিপ্লেস করতে নিচে ক্লিক করুন:", {"inline_keyboard": keyboard})
+                    self.edit_telegram_message(chat_id, message_id, "📋 স্টক দেখতে বা ম্যানেজ করতে নিচে ক্লিক করুন:", {"inline_keyboard": keyboard})
 
                 elif data.startswith("view_stock_"):
                     parts = data.split("_", 3)
@@ -255,16 +270,13 @@ class handler(BaseHTTPRequestHandler):
                     self.edit_telegram_message(chat_id, message_id, text, {"inline_keyboard": keyboard})
 
                 elif data.startswith("clear_country_"):
-                    parts = data.split("_", 2)
-                    # safe split for service and country
                     rem = data.replace("clear_country_", "")
-                    # finding last underscore or matching
                     for s_name in database:
                         for c_name in database[s_name]:
                             if rem == f"{s_name}_{c_name}":
                                 database[s_name][c_name] = []
                     
-                    self.edit_telegram_message(chat_id, message_id, "✅ এই দেশের বাকি সব নম্বর সফলভাবে মুছে ফেলা হয়েছে! এখন নতুন নম্বর রি-অ্যাড করতে পারেন।", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_manage_stock"}]]})
+                    self.edit_telegram_message(chat_id, message_id, "✅ এই দেশের বাকি সব নম্বর সফলভাবে মুছে ফেলা হয়েছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_manage_stock"}]]})
 
             self.send_response(200)
             self.end_headers()
@@ -320,9 +332,9 @@ class handler(BaseHTTPRequestHandler):
             ]
         }
 
-    def send_telegram_message(self, chat_id, text, reply_markup=None):
+    def send_telegram_message(self, chat_id, text, reply_markup=None, parse_mode="Markdown"):
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
         if reply_markup:
             payload["reply_markup"] = reply_markup
         data = json.dumps(payload).encode('utf-8')
@@ -332,9 +344,9 @@ class handler(BaseHTTPRequestHandler):
         except:
             pass
 
-    def edit_telegram_message(self, chat_id, message_id, text, reply_markup=None):
+    def edit_telegram_message(self, chat_id, message_id, text, reply_markup=None, parse_mode="Markdown"):
         url = f"https://api.telegram.org/bot{TOKEN}/editMessageText"
-        payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "Markdown"}
+        payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": parse_mode}
         if reply_markup:
             payload["reply_markup"] = reply_markup
         data = json.dumps(payload).encode('utf-8')
@@ -347,4 +359,4 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running with Stock View & Replace/Delete System!")
+        self.wfile.write(b"Bot is running with OTP Group Link under Fetch button!")
