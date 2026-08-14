@@ -3,6 +3,8 @@ import json
 import urllib.request
 
 TOKEN = "8883835008:AAEjm5zjdMuFEB8E19PdKGTGS7GSu6gjpb4"
+OTP_GROUP_ID = "-1003931415470"
+OTP_GROUP_LINK = "https://t.me/c/3931415470/1" # আপনার গ্রুপ লিংক এখানে সেট করা হলো
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -23,7 +25,7 @@ class handler(BaseHTTPRequestHandler):
                             [{"text": "📥 Get Number", "callback_data": "get_number"}],
                             [{"text": "📊 Live Traffic", "callback_data": "live_traffic"}],
                             [{"text": "👤 My Profile", "callback_data": "my_profile"}],
-                            [{"text": "🔗 Get OTP Group", "url": "https://t.me/your_otp_group"}]
+                            [{"text": "🔗 Get OTP Group", "url": OTP_GROUP_LINK}]
                         ]
                     }
                     self.send_telegram_message(chat_id, f"স্বাগতম {first_name}! নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:", reply_markup)
@@ -96,7 +98,7 @@ class handler(BaseHTTPRequestHandler):
                             [{"text": "📥 Get Number", "callback_data": "get_number"}],
                             [{"text": "📊 Live Traffic", "callback_data": "live_traffic"}],
                             [{"text": "👤 My Profile", "callback_data": "my_profile"}],
-                            [{"text": "🔗 Get OTP Group", "url": "https://t.me/your_otp_group"}]
+                            [{"text": "🔗 Get OTP Group", "url": OTP_GROUP_LINK}]
                         ]
                     }
                     self.edit_telegram_message(chat_id, message_id, "প্রধান মেনু:", reply_markup)
