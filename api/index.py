@@ -11,17 +11,13 @@ class handler(BaseHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             update = json.loads(post_data.decode('utf-8'))
             
-            # মেসেজ বা কমান্ড চেক করা
             if "message" in update:
                 chat_id = update["message"]["chat"]["id"]
                 text = update["message"].get("text", "")
                 user = update["message"].get("from", {})
                 first_name = user.get("first_name", "User")
-                username = user.get("username", "N/A")
-                user_id = user.get("id", "")
 
                 if text.startswith("/start"):
-                    # মেইন মেনু ইনলাইন কিবোর্ড
                     reply_markup = {
                         "inline_keyboard": [
                             [{"text": "📥 Get Number", "callback_data": "get_number"}],
@@ -40,7 +36,6 @@ class handler(BaseHTTPRequestHandler):
                     }
                     self.send_telegram_message(chat_id, "🔧 **Admin Panel**\nসেটিংস পরিবর্তন করতে নিচে ক্লিক করুন:", reply_markup)
 
-            # ইনলাইন বাটন ক্লিক (Callback Query) চেক করা
             elif "callback_query" in update:
                 callback = update["callback_query"]
                 chat_id = callback["message"]["chat"]["id"]
@@ -112,13 +107,12 @@ class handler(BaseHTTPRequestHandler):
                             [{"text": "🔙 Back", "callback_data": "back_home"}]
                         ]
                     }
-                    self.edit_telegram_message(chat_id, message_id, "🛠️ অ্যাডমিন কন্ট্রোল প্যানেল (Country Add অপশন এখানে থাকবে)", reply_markup)
+                    self.edit_telegram_message(chat_id, message_id, "🛠️ অ্যাডমিন কন্ট্রোল প্যানেল", reply_markup)
 
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"OK")
         except Exception as e:
-            print(f"Error: {e}")
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"OK")
@@ -128,26 +122,24 @@ class handler(BaseHTTPRequestHandler):
         payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
         if reply_markup:
             payload["reply_markup"] = reply_markup
-        
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
         try:
             urllib.request.urlopen(req)
-        except Exception as e:
-            print(f"Send Error: {e}")
+        except:
+            pass
 
     def edit_telegram_message(self, chat_id, message_id, text, reply_markup=None):
         url = f"https://api.telegram.org/bot{TOKEN}/editMessageText"
         payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "Markdown"}
         if reply_markup:
             payload["reply_markup"] = reply_markup
-            
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'})
         try:
             urllib.request.urlopen(req)
-        except Exception as e:
-            print(f"Edit Error: {e}")
+        except:
+            pass
 
     def do_GET(self):
         self.send_response(200)
