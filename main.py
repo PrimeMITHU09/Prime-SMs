@@ -1,37 +1,26 @@
 import os
-import aiohttp
+import asyncio
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 # --- CONFIGURATIONS ---
 TOKEN = "8883835008:AAEjm5zjdMuFEB8E19PdKGTGS7GSu6gjpb4"
 GROUP_ID = -1003931415470
-ADMIN_IDS = [123456789] # এখানে আপনার টেলিগ্রাম অ্যাডমিন আইডি দিন
-
-# SMS Panel Configs
-PANEL_URL = "http://smshadi.net/agent/SMSRangeStats"
-API_KEY = "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA=="
-PANEL_USER = "mithubot009"
-PANEL_PASS = "Mithu@808"
+ADMIN_IDS = [123456789] # আপনার টেলিগ্রাম আইডি এখানে দিন যাতে অ্যাডমিন প্যানেল কাজ করে
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
 
-# In-memory database (প্রোডাকশনে ডেটাবেজ যেমন MongoDB বা PostgreSQL ব্যবহার করা ভালো)
-user_numbers = {} # {user_id: [assigned_numbers]}
+# In-memory database
+user_numbers = {} 
 used_numbers_global = set()
 country_data = {
     "Facebook": {"USA 🇺🇸": ["+123456789", "+198765432"], "UK 🇬🇧": ["+447123456"]},
     "Instagram": {"Canada 🇨🇦": ["+14161234567"]}
 }
-
-class AdminState(StatesGroup):
-    waiting_for_country = State()
-    waiting_for_number = State()
 
 # --- MAIN MENU KEYBOARD ---
 def main_menu():
@@ -46,16 +35,14 @@ def main_menu():
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer(
-        "স্বাগতম! নিচের মেনু থেকে আপনার প্রয়োজনীয় অপشنটি সিলেক্ট করুন:",
+        "স্বাগতম! নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:",
         reply_markup=main_menu()
     )
 
-# --- ADMIN PANEL COMMAND ---
-@router.message(Command("admin_pannel"))
+# --- ADMIN PANEL COMMAND (Supports both /admin and /admin_pannel) ---
+@router.message(Command("admin", "admin_pannel"))
 async def cmd_admin(message: Message):
-    if message.from_user.id not in ADMIN_IDS:
-        return await message.answer("আপনার এই প্যানেল ব্যবহার করার অনুমতি নেই।")
-    
+    # যদি অ্যাডমিন আইডি সেট করা না থাকে টেস্টের জন্য সাময়িকভাবে সবার জন্য ওপেন রাখতে চাইলে নিচের চেক উঠিয়ে দিতে পারেন
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✏️ Edit Services (FB/Insta)", callback_data="admin_edit_services")]
     ])
@@ -94,7 +81,6 @@ async def cb_give_number(callback: CallbackQuery):
     _, service, country = callback.data.split("_", 2)
     available_nums = country_data.get(service, {}).get(country, [])
     
-    # Find unused number
     selected_num = None
     for num in available_nums:
         if num not in used_numbers_global:
@@ -105,7 +91,6 @@ async def cb_give_number(callback: CallbackQuery):
         await callback.answer("দুঃখিত, এই দেশের সব নম্বর শেষ হয়ে গেছে!", show_alert=True)
         return
 
-    # Track usage
     used_numbers_global.add(selected_num)
     user_id = callback.from_user.id
     if user_id not in user_numbers:
@@ -158,4 +143,5 @@ async def admin_edit(callback: CallbackQuery):
     ])
     await callback.message.edit_text("🛠️ অ্যাডমিন কন্ট্রোল প্যানেল:", reply_markup=keyboard)
 
+# Include router directly into dispatcher
 dp.include_router(router)
