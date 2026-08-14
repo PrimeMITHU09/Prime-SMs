@@ -2,14 +2,14 @@ from http.server import BaseHTTPRequestHandler
 import json
 import urllib.request
 import urllib.parse
+import time
 
 TOKEN = "8883835008:AAEjm5zjdMuFEB8E19PdKGTGS7GSu6gjpb4"
 OTP_GROUP_ID = "-1003931415470"
 OTP_GROUP_LINK = "https://t.me/c/3931415470/1"
 
-# SMS API Configurations (আপনার দেওয়া গাইড অনুযায়ী)
 SMS_API_URL = "http://147.135.212.197/crapi/had/viewstats"
-SMS_API_TOKEN = "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA==" # অথবা আপনার প্রোভাইড করা টোকেন
+SMS_API_TOKEN = "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA=="
 
 database = {
     "Facebook": {},
@@ -67,7 +67,7 @@ class handler(BaseHTTPRequestHandler):
                     self.send_telegram_message(chat_id, f"স্বাগতম {first_name}! নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:", self.main_menu())
 
                 elif text.startswith("/admin") or text.startswith("/admin_pannel"):
-                    self.send_telegram_message(chat_id, "🔧 **Admin Panel**\nনতুন কান্ট্রি বা নম্বর যোগ করতে নিচে ক্লিক করুন:", self.admin_keyboard())
+                    self.send_telegram_message(chat_id, "🔧 **Admin Panel**\nসেটিংস এবং টেস্ট অপশন নিচে দেওয়া হলো:", self.admin_keyboard())
 
             elif "callback_query" in update:
                 callback = update["callback_query"]
@@ -91,7 +91,7 @@ class handler(BaseHTTPRequestHandler):
                         keyboard = []
                         for country in countries.keys():
                             keyboard.append([{"text": country, "callback_data": f"country_{service}_{country}"}])
-                        keyboard.append([{"text": "🔙 Back", "callback_data": "get_number"}])
+                        keyboard.append([{"text": "🔙 Back", "callback_data": "get_number"}],)
                         self.edit_telegram_message(chat_id, message_id, f"🌍 **{service}** এর জন্য দেশ সিলেক্ট করুন:", {"inline_keyboard": keyboard})
 
                 elif data.startswith("country_"):
@@ -104,8 +104,6 @@ class handler(BaseHTTPRequestHandler):
                         self.edit_telegram_message(chat_id, message_id, "দুঃখিত, এই দেশের সব নম্বর শেষ হয়ে গেছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": f"service_{service}"}]]})
                     else:
                         assigned_num = available_nums.pop(0)
-                        
-                        # প্যানেল থেকে এই নম্বরের কোনো ওটিপি এসেছে কি না তা চেক করার জন্য API কল করা যেতে পারে
                         sms_text = self.fetch_sms_from_panel(assigned_num)
 
                         text = (
@@ -115,7 +113,6 @@ class handler(BaseHTTPRequestHandler):
                             f"📩 **Latest SMS/OTP:**\n{sms_text}"
                         )
                         
-                        # ওটিপি গ্রুপে প্রিমিয়াম ফরম্যাটে ফরোয়ার্ড করা
                         group_message = (
                             f"🚨 **New OTP Assigned Alert**\n"
                             f"👤 User: {user.get('first_name')} (`{user_id}`)\n"
@@ -146,15 +143,32 @@ class handler(BaseHTTPRequestHandler):
                         "inline_keyboard": [
                             [{"text": "➕ Add Country/Number (Facebook)", "callback_data": "add_country_Facebook"}],
                             [{"text": "➕ Add Country/Number (Instagram)", "callback_data": "add_country_Instagram"}],
+                            [{"text": "🧪 Run Test OTP Simulation (Group Test)", "callback_data": "run_test_otp"}],
                             [{"text": "🔙 Back", "callback_data": "back_home"}]
                         ]
                     }
-                    self.edit_telegram_message(chat_id, message_id, "🛠️ অ্যাডমিন কন্ট্রোল প্যানেল: কোন সার্ভিসে কান্ট্রি ও নম্বর যোগ করতে চান?", keyboard)
+                    self.edit_telegram_message(chat_id, message_id, "🛠️ অ্যাডমিন কন্ট্রোল প্যানেল:", keyboard)
 
                 elif data.startswith("add_country_"):
                     service = data.split("_")[2]
                     admin_sessions[user_id] = {"service": service, "step": "waiting_country"}
                     self.edit_telegram_message(chat_id, message_id, f"📝 আপনি **{service}** সিলেক্ট করেছেন।\n\nদয়া করে এখন নতুন **দেশের নাম ও ফ্ল্যাগ** লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_edit_services"}]]})
+
+                elif data == "run_test_otp":
+                    # টেস্ট ওটিপি সিমুলেশন ট্রিগার (গ্রুপে প্রিমিয়াম ফরম্যাটে স্যাম্পল ওটিপি পাঠাবে)
+                    self.edit_telegram_message(chat_id, message_id, "🚀 টেস্ট ওটিপি সিমুলেশন শুরু হয়েছে... গ্রুপটি চেক করুন!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_edit_services"}]]})
+                    
+                    # প্রিমিয়াম স্টাইলে টেস্ট মেসেজ পাঠানো
+                    test_sample = (
+                        f"🔥 **[TEST SIMULATION] New OTP Received**\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"📱 **Number:** `+1 (939) 456-7890`\n"
+                        f"🌐 **Service:** Facebook Verification\n"
+                        f"💬 **OTP Code:** `984210`\n"
+                        f"⏰ **Time:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        f"━━━━━━━━━━━━━━━━━━━"
+                    )
+                    self.send_telegram_message(OTP_GROUP_ID, test_sample)
 
             self.send_response(200)
             self.end_headers()
@@ -165,7 +179,6 @@ class handler(BaseHTTPRequestHandler):
             self.wfile.write(b"OK")
 
     def fetch_sms_from_panel(self, phone_number):
-        """আপনার দেওয়া গাইড অনুযায়ী প্যানেল থেকে এসএমএস ফেচ করার ফাংশন"""
         try:
             params = urllib.parse.urlencode({
                 "token": SMS_API_TOKEN,
@@ -236,4 +249,4 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running with SMS API Integration!")
+        self.wfile.write(b"Bot is running with Test Simulation!")
