@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import json
-from main import bot, dp, router
 import asyncio
+from main import bot, dp
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -10,17 +10,20 @@ class handler(BaseHTTPRequestHandler):
         
         try:
             update_data = json.loads(post_data.decode('utf-8'))
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(self.process_update(update_data))
+            
+            # Run async update processing in a new event loop
+            asyncio.run(self.process_update(update_data))
+            
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error handling update: {e}")
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(b"Internal Server Error")
 
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-    async def process_update(data):
+    async def process_update(self, data):
         from aiogram.types import Update
         update = Update.model_validate(data, context={"bot": bot})
         await dp.feed_update(bot, update)
@@ -28,4 +31,4 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Telegram Bot is running on Vercel!")
+        self.wfile.write(b"Telegram Bot is running smoothly on Vercel!")
