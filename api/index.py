@@ -8,13 +8,18 @@ TOKEN = "8883835008:AAEjm5zjdMuFEB8E19PdKGTGS7GSu6gjpb4"
 OTP_GROUP_ID = "-1003931415470"
 OTP_GROUP_LINK = "https://t.me/c/3931415470/1"
 
-SMS_API_URL = "http://147.135.212.197/crapi/had/viewstats"
-SMS_API_TOKEN = "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA=="
+# গ্লোবাল কনফিগারেশন (যা অ্যাডমিন প্যানেল থেকে পরিবর্তন করা যাবে)
+config = {
+    "sms_api_url": "http://147.135.212.197/crapi/had/viewstats",
+    "sms_api_token": "QlFQSENBUzRpV1hcYYJXU3xwV2VSf2lVXI-YXmSFjnh0VZVGcoNzVA=="
+}
 
+# ডাইনামিক ডেটা স্টোরেজ (সার্ভিস ও নম্বর ম্যানেজমেন্ট)
 database = {
     "Facebook": {},
     "Instagram": {}
 }
+
 admin_sessions = {}
 
 class handler(BaseHTTPRequestHandler):
@@ -34,9 +39,41 @@ class handler(BaseHTTPRequestHandler):
                 if user_id in admin_sessions:
                     state_data = admin_sessions[user_id]
                     step = state_data.get("step")
-                    service = state_data.get("service")
+                    action = state_data.get("action")
 
-                    if step == "waiting_country":
+                    # নতুন সার্ভিস যোগ করা
+                    if action == "add_service":
+                        new_service = text.strip()
+                        if new_service not in database:
+                            database[new_service] = {}
+                        del admin_sessions[user_id]
+                        self.send_telegram_message(chat_id, f"🎉 সফলভাবে নতুন সার্ভিস **{new_service}** যুক্ত করা হয়েছে!", self.admin_keyboard())
+                        self.send_response(200)
+                        self.end_headers()
+                        return
+
+                    # নতুন API URL পরিবর্তন করা
+                    elif action == "change_api_url":
+                        config["sms_api_url"] = text.strip()
+                        state_data["step"] = "waiting_new_token"
+                        state_data["action"] = "change_api_token"
+                        admin_sessions[user_id] = state_data
+                        self.send_telegram_message(chat_id, f"✅ নতুন API URL সেভ হয়েছে!\n\nএবার নতুন প্যানেলের **API Token** দিন:")
+                        self.send_response(200)
+                        self.end_headers()
+                        return
+
+                    # নতুন API Token পরিবর্তন করা
+                    elif action == "change_api_token":
+                        config["sms_api_token"] = text.strip()
+                        del admin_sessions[user_id]
+                        self.send_telegram_message(chat_id, f"🚀 সফলভাবে নতুন এসএমএস প্যানেল (API & Token) আপডেট করা হয়েছে!", self.admin_keyboard())
+                        self.send_response(200)
+                        self.end_headers()
+                        return
+
+                    # কান্ট্রি ও নম্বর যোগ করা
+                    elif step == "waiting_country":
                         country_name = text.strip()
                         state_data["country"] = country_name
                         state_data["step"] = "waiting_number"
@@ -47,6 +84,7 @@ class handler(BaseHTTPRequestHandler):
                         return
 
                     elif step == "waiting_number":
+                        service = state_data.get("service")
                         country = state_data.get("country")
                         numbers = [n.strip() for n in text.replace(",", "\n").split("\n") if n.strip()]
                         
@@ -67,7 +105,7 @@ class handler(BaseHTTPRequestHandler):
                     self.send_telegram_message(chat_id, f"স্বাগতম {first_name}! নিচের মেনু থেকে আপনার প্রয়োজনীয় অপশনটি সিলেক্ট করুন:", self.main_menu())
 
                 elif text.startswith("/admin") or text.startswith("/admin_pannel"):
-                    self.send_telegram_message(chat_id, "🔧 **Admin Panel**\nসেটিংস এবং টেস্ট অপশন নিচে দেওয়া হলো:", self.admin_keyboard())
+                    self.send_telegram_message(chat_id, "🔧 **Admin Control Panel**\nসার্ভিস, নম্বর ও প্যানেল ম্যানেজ করতে নিচে ক্লিক করুন:", self.admin_keyboard())
 
             elif "callback_query" in update:
                 callback = update["callback_query"]
@@ -91,7 +129,7 @@ class handler(BaseHTTPRequestHandler):
                         keyboard = []
                         for country in countries.keys():
                             keyboard.append([{"text": country, "callback_data": f"country_{service}_{country}"}])
-                        keyboard.append([{"text": "🔙 Back", "callback_data": "get_number"}],)
+                        keyboard.append([{"text": "🔙 Back", "callback_data": "get_number"}])
                         self.edit_telegram_message(chat_id, message_id, f"🌍 **{service}** এর জন্য দেশ সিলেক্ট করুন:", {"inline_keyboard": keyboard})
 
                 elif data.startswith("country_"):
@@ -126,9 +164,8 @@ class handler(BaseHTTPRequestHandler):
                         self.edit_telegram_message(chat_id, message_id, text, reply_markup)
 
                 elif data == "live_traffic":
-                    fb_count = sum(len(nums) for nums in database.get("Facebook", {}).values())
-                    insta_count = sum(len(nums) for nums in database.get("Instagram", {}).values())
-                    text = f"📊 **Live Traffic Analysis**\n\n📘 Facebook Total Active Numbers: {fb_count}\n📷 Instagram Total Active Numbers: {insta_count}\n\nঅবস্থা স্বাভাবিক রয়েছে।"
+                    total_nums = sum(len(nums) for s in database.values() for nums in s.values())
+                    text = f"📊 **Live Traffic Analysis**\n\n🌐 Total Active Services: {len(database)}\n📱 Total Active Numbers: {total_nums}\n\nঅবস্থা স্বাভাবিক রয়েছে।"
                     self.edit_telegram_message(chat_id, message_id, text, {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "back_home"}]]})
 
                 elif data == "my_profile":
@@ -138,32 +175,45 @@ class handler(BaseHTTPRequestHandler):
                 elif data == "back_home":
                     self.edit_telegram_message(chat_id, message_id, "প্রধান মেনু:", self.main_menu())
 
-                elif data == "admin_edit_services":
+                elif data == "admin_menu":
                     keyboard = {
                         "inline_keyboard": [
-                            [{"text": "➕ Add Country/Number (Facebook)", "callback_data": "add_country_Facebook"}],
-                            [{"text": "➕ Add Country/Number (Instagram)", "callback_data": "add_country_Instagram"}],
-                            [{"text": "🧪 Run Test OTP Simulation (Group Test)", "callback_data": "run_test_otp"}],
+                            [{"text": "➕ Add New Service", "callback_data": "admin_add_service"}],
+                            [{"text": "➕ Add Country/Number to Service", "callback_data": "admin_edit_services"}],
+                            [{"text": "🔄 Change SMS Website / API", "callback_data": "admin_change_api"}],
+                            [{"text": "🧪 Run Test OTP Simulation", "callback_data": "run_test_otp"}],
                             [{"text": "🔙 Back", "callback_data": "back_home"}]
                         ]
                     }
-                    self.edit_telegram_message(chat_id, message_id, "🛠️ অ্যাডমিন কন্ট্রোল প্যানেল:", keyboard)
+                    self.edit_telegram_message(chat_id, message_id, "🛠️ **Admin Control Panel**\nনিচে থেকে আপনার প্রয়োজনীয় অপشن সিলেক্ট করুন:", keyboard)
+
+                elif data == "admin_add_service":
+                    admin_sessions[user_id] = {"action": "add_service"}
+                    self.edit_telegram_message(chat_id, message_id, "📝 নতুন সার্ভিসের নাম লিখুন (যেমন: `Telegram`, `WhatsApp`):", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
+
+                elif data == "admin_change_api":
+                    admin_sessions[user_id] = {"action": "change_api_url", "step": "waiting_new_url"}
+                    self.edit_telegram_message(chat_id, message_id, f"🔗 বর্তমান প্যানেল URL: `{config['sms_api_url']}`\n\nদয়া করে নতুন **SMS Website API URL** টি লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
+
+                elif data == "admin_edit_services":
+                    keyboard = []
+                    for s_name in database.keys():
+                        keyboard.append([{"text": f"➕ Add to {s_name}", "callback_data": f"add_country_{s_name}"}])
+                    keyboard.append([{"text": "🔙 Back", "callback_data": "admin_menu"}])
+                    self.edit_telegram_message(chat_id, message_id, "📂 কোন সার্ভিসে কান্ট্রি ও নম্বর যোগ করতে চান?", {"inline_keyboard": keyboard})
 
                 elif data.startswith("add_country_"):
-                    service = data.split("_")[2]
+                    service = data.split("_", 2)[2]
                     admin_sessions[user_id] = {"service": service, "step": "waiting_country"}
-                    self.edit_telegram_message(chat_id, message_id, f"📝 আপনি **{service}** সিলেক্ট করেছেন।\n\nদয়া করে এখন নতুন **দেশের নাম ও ফ্ল্যাগ** লিখে পাঠান:", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_edit_services"}]]})
+                    self.edit_telegram_message(chat_id, message_id, f"📝 আপনি **{service}** সিলেক্ট করেছেন।\n\nদয়া করে নতুন **দেশের নাম ও ফ্ল্যাগ** লিখে পাঠান (যেমন: `Bangladesh 🇧🇩`):", {"inline_keyboard": [[{"text": "❌ Cancel", "callback_data": "admin_menu"}]]})
 
                 elif data == "run_test_otp":
-                    # টেস্ট ওটিপি সিমুলেশন ট্রিগার (গ্রুপে প্রিমিয়াম ফরম্যাটে স্যাম্পল ওটিপি পাঠাবে)
-                    self.edit_telegram_message(chat_id, message_id, "🚀 টেস্ট ওটিপি সিমুলেশন শুরু হয়েছে... গ্রুপটি চেক করুন!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_edit_services"}]]})
-                    
-                    # প্রিমিয়াম স্টাইলে টেস্ট মেসেজ পাঠানো
+                    self.edit_telegram_message(chat_id, message_id, "🚀 টেস্ট ওটিপি সিমুলেশন পাঠানো হয়েছে!", {"inline_keyboard": [[{"text": "🔙 Back", "callback_data": "admin_menu"}]]})
                     test_sample = (
                         f"🔥 **[TEST SIMULATION] New OTP Received**\n"
                         f"━━━━━━━━━━━━━━━━━━━\n"
                         f"📱 **Number:** `+1 (939) 456-7890`\n"
-                        f"🌐 **Service:** Facebook Verification\n"
+                        f"🌐 **Service:** Test Verification\n"
                         f"💬 **OTP Code:** `984210`\n"
                         f"⏰ **Time:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
                         f"━━━━━━━━━━━━━━━━━━━"
@@ -181,17 +231,16 @@ class handler(BaseHTTPRequestHandler):
     def fetch_sms_from_panel(self, phone_number):
         try:
             params = urllib.parse.urlencode({
-                "token": SMS_API_TOKEN,
+                "token": config["sms_api_token"],
                 "filternum": phone_number,
                 "records": 1
             })
-            url = f"{SMS_API_URL}?{params}"
+            url = f"{config['sms_api_url']}?{params}"
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req, timeout=5) as response:
                 res_data = json.loads(response.read().decode('utf-8'))
                 if res_data.get("status") == "success" and res_data.get("data"):
-                    latest_msg = res_data["data"][0].get("message", "No message found")
-                    return latest_msg
+                    return res_data["data"][0].get("message", "No message found")
         except Exception as e:
             pass
         return "অপেক্ষা করুন, এখনো কোনো এসএমএস আসেনি..."
@@ -207,18 +256,16 @@ class handler(BaseHTTPRequestHandler):
         }
 
     def get_service_keyboard(self):
-        return {
-            "inline_keyboard": [
-                [{"text": "📘 Facebook", "callback_data": "service_Facebook"}],
-                [{"text": "📷 Instagram", "callback_data": "service_Instagram"}],
-                [{"text": "🔙 Back", "callback_data": "back_home"}]
-            ]
-        }
+        keyboard = []
+        for s_name in database.keys():
+            keyboard.append([{"text": f"🌐 {s_name}", "callback_data": f"service_{s_name}"}])
+        keyboard.append([{"text": "🔙 Back", "callback_data": "back_home"}])
+        return {"inline_keyboard": keyboard}
 
     def admin_keyboard(self):
         return {
             "inline_keyboard": [
-                [{"text": "✏️ Edit Services (FB/Insta)", "callback_data": "admin_edit_services"}]
+                [{"text": "⚙️ Admin Panel Settings", "callback_data": "admin_menu"}]
             ]
         }
 
@@ -249,4 +296,4 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running with Test Simulation!")
+        self.wfile.write(b"Bot is running with Dynamic Admin Management!")
